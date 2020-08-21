@@ -1,0 +1,42 @@
+<html>
+    <head>
+        <script>
+            let accessToken = null;
+
+            function login() {
+                request("login");
+            }
+            function refresh() {
+                request("refresh");
+            }
+            function logout() {
+                accessToken = null;
+                request("logout");
+            }
+            function data() {
+                request("data");
+            }
+
+            async function request(action) {
+                const response = await fetch("service.php?" + action, {
+                    method: "POST",
+                    headers: {
+                        "X-Access-Token": accessToken || undefined,
+                    },
+                });
+                console.log({ accessToken });
+                const data = await response.json();
+                console.log(data);
+                if (data.access_token) {
+                    accessToken = data.access_token;
+                }
+            }
+        </script>
+    </head>
+    <body>
+        <button onclick="login()">login</button>
+        <button onclick="refresh()">refresh</button>
+        <button onclick="logout()">logout</button>
+        <button onclick="data()">data</button>
+    </body>
+</html>
