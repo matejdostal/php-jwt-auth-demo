@@ -10,6 +10,7 @@
                 loginNameField.value = "";
             }
             function refresh() {
+                clearTimeout(refreshTimer);
                 request("refresh");
             }
             function logout() {
