@@ -7,18 +7,21 @@ use \Firebase\JWT\JWT;
 define('ACCESS_TOKEN_SECRET_KEY', '1cb5ba0a280d06a8cd86bf36a2d2faebed2b885e64d798d5f8d0a52bc24cda04');
 define('REFRESH_TOKEN_SECRET_KEY', '4596b6ebb719e0b701182419a5c0f8468d0b05d8222bef94e2111de086325be9');
 
-function generateAccessToken() {
+define('ACCESS_TOKEN_EXPIRATION_TIME', 10); // 10 seconds
+define('REFRESH_TOKEN_EXPIRATION_TIME', 60); // 60 seconds
+
+function generateAccessToken($payload) {
     return generateToken([
         'iat' => time(),
-        'token_type' => 'access_token'
-    ], ACCESS_TOKEN_SECRET_KEY);
+        'exp' => time() + ACCESS_TOKEN_EXPIRATION_TIME
+    ] + $payload, ACCESS_TOKEN_SECRET_KEY);
 }
 
-function generateRefreshToken() {
+function generateRefreshToken($payload) {
     return generateToken([
         'iat' => time(),
-        'token_type' => 'refresh_token'
-    ], REFRESH_TOKEN_SECRET_KEY);
+        'exp' => time() + REFRESH_TOKEN_EXPIRATION_TIME
+    ] + $payload, REFRESH_TOKEN_SECRET_KEY);
 }
 
 function generateToken($payload, $key) {
@@ -74,7 +77,7 @@ function saveValidRefreshTokens($tokens) {
 }
 
 function saveRefreshTokenToCookie($refreshToken) {
-    setcookie('refresh_token', $refreshToken, [ 'httponly' => true ]);
+    setcookie('refresh_token', $refreshToken, [ 'httponly' => true, 'expires' => time() + REFRESH_TOKEN_EXPIRATION_TIME ]);
 }
 
 function deleteRefreshTokenFromCookie() {
@@ -100,14 +103,25 @@ function sendResponse($response) {
 
 switch ($_SERVER['QUERY_STRING']) {
     case 'login':
-        // TODO: validate login data
-        $accessToken = generateAccessToken();
-        $refreshToken = generateRefreshToken();
+        $loginName = '';
+        try {
+            $params = json_decode(file_get_contents('php://input'), true);
+            $loginName = $params['loginName'];
+        } catch (Exception $e) {}
+        if (!$loginName) {
+            sendResponse([
+                'success' => false
+            ]);
+            break;
+        }
+        $accessToken = generateAccessToken(['loginName' => $loginName]);
+        $refreshToken = generateRefreshToken(['loginName' => $loginName]);
         storeRefreshToken($refreshToken);
         saveRefreshTokenToCookie($refreshToken);
         sendResponse([
             'success' => true,
-            'access_token' => $accessToken
+            'access_token' => $accessToken,
+            'access_token_expires_in' => ACCESS_TOKEN_EXPIRATION_TIME
         ]);
         break;
     case 'refresh':
@@ -115,14 +129,17 @@ switch ($_SERVER['QUERY_STRING']) {
         if (verifyRefreshToken($refreshToken) === true) {
             invalidateRefreshToken($refreshToken);
             deleteRefreshTokenFromCookie();
-            if (parseRefreshToken($refreshToken) !== null) {
-                $accessToken = generateAccessToken();
-                $refreshToken = generateRefreshToken();
+            $payload = parseRefreshToken($refreshToken);
+            if ($payload !== null) {
+                $loginName = $payload['loginName'];
+                $accessToken = generateAccessToken(['loginName' => $loginName]);
+                $refreshToken = generateRefreshToken(['loginName' => $loginName]);
                 storeRefreshToken($refreshToken);
                 saveRefreshTokenToCookie($refreshToken);
                 sendResponse([
                     'success' => true,
-                    'access_token' => $accessToken
+                    'access_token' => $accessToken,
+                    'access_token_expires_in' => ACCESS_TOKEN_EXPIRATION_TIME
                 ]);
                 break;
             }
@@ -142,11 +159,12 @@ switch ($_SERVER['QUERY_STRING']) {
     case 'data':
         $accessToken = getAccessTokenFromHeader();
         if ($accessToken) {
-            if (parseAccessToken($accessToken) !== null) {
+            $payload = parseAccessToken($accessToken);
+            if ($payload !== null) {
                 sendResponse([
                     'success' => true,
                     'time' => time(),
-                    'data' => 'some data...'
+                    'loginName' => $payload['loginName']
                 ]);
                 break;
             }

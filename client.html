@@ -2,14 +2,18 @@
     <head>
         <script>
             let accessToken = null;
+            let refreshTimer = null;
 
             function login() {
-                request("login");
+                const loginNameField = document.getElementById("login-name");
+                request("login", { loginName: loginNameField.value });
+                loginNameField.value = "";
             }
             function refresh() {
                 request("refresh");
             }
             function logout() {
+                clearTimeout(refreshTimer);
                 accessToken = null;
                 request("logout");
             }
@@ -17,23 +21,33 @@
                 request("data");
             }
 
-            async function request(action) {
+            async function request(action, params) {
+                console.group({ action, params });
                 const response = await fetch("service.php?" + action, {
                     method: "POST",
                     headers: {
                         "X-Access-Token": accessToken || undefined,
                     },
+                    body: params && JSON.stringify(params),
                 });
                 console.log({ accessToken });
                 const data = await response.json();
                 console.log(data);
                 if (data.access_token) {
                     accessToken = data.access_token;
+                    if (data.access_token_expires_in) {
+                        // refresh 2 seconds before expiration
+                        refreshTimer = setTimeout(() => refresh(), (data.access_token_expires_in - 2) * 1000);
+                    }
                 }
+                console.groupEnd();
             }
+
+            refresh();
         </script>
     </head>
     <body>
+        <input type="text" id="login-name" />
         <button onclick="login()">login</button>
         <button onclick="refresh()">refresh</button>
         <button onclick="logout()">logout</button>
