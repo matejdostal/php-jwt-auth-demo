@@ -36,6 +36,9 @@
                 console.log({ accessToken });
                 const data = await response.json();
                 console.log(data);
+                if (action === "refresh" && !data.success) {
+                    accessToken = null;
+                }
                 if (data.access_token) {
                     accessToken = data.access_token;
                     if (data.access_token_expires_in) {

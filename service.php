@@ -48,38 +48,38 @@ function parseToken($token, $key) {
 
 function verifyRefreshToken($refreshToken) {
     $tokens = getValidRefreshTokens();
-    return in_array($refreshToken, $tokens);
+    return array_key_exists($refreshToken, $tokens);
 }
 
-function storeRefreshToken($refreshToken) {
+function storeRefreshToken($refreshToken, $accessTokenPayload) {
     $tokens = getValidRefreshTokens();
-    if (!in_array($refreshToken, $tokens)) {
-        $tokens[] = $refreshToken;
-    }
+    $tokens[$refreshToken] = $accessTokenPayload;
     saveValidRefreshTokens($tokens);
+}
+
+function getStoredAccessTokenPayload($refreshToken) {
+    $tokens = getValidRefreshTokens();
+    return array_key_exists($refreshToken, $tokens) ? $tokens[$refreshToken] : null;
 }
 
 function invalidateRefreshToken($refreshToken) {
     $tokens = getValidRefreshTokens();
-    if (in_array($refreshToken, $tokens)) {
-        $index = array_search($refreshToken, $tokens);
-        unset($tokens[$index]);
-        saveValidRefreshTokens($tokens);
-    }
+    unset($tokens[$refreshToken]);
+    saveValidRefreshTokens($tokens);
 }
 
 function getValidRefreshTokens() {
     if (!file_exists('tokens.json')) {
         $fp = fopen('tokens.json', 'w');
-        fwrite($fp, '[]');
+        fwrite($fp, '{}');
         fclose($fp);
         chmod('tokens.json', 0777);
     }
-    return json_decode(file_get_contents('tokens.json'));
+    return json_decode(file_get_contents('tokens.json'), true);
 }
 
 function saveValidRefreshTokens($tokens) {
-    file_put_contents('tokens.json', json_encode($tokens));
+    file_put_contents('tokens.json', json_encode($tokens, JSON_FORCE_OBJECT));
 }
 
 function saveRefreshTokenToCookie($refreshToken) {
@@ -126,8 +126,8 @@ switch ($_SERVER['QUERY_STRING']) {
         deleteRefreshTokenFromCookie();
 
         $accessToken = generateAccessToken(['loginName' => $loginName]);
-        $refreshToken = generateRefreshToken(['loginName' => $loginName]);
-        storeRefreshToken($refreshToken);
+        $refreshToken = generateRefreshToken([]);
+        storeRefreshToken($refreshToken, ['loginName' => $loginName]);
         saveRefreshTokenToCookie($refreshToken);
         sendResponse([
             'success' => true,
@@ -138,14 +138,14 @@ switch ($_SERVER['QUERY_STRING']) {
     case 'refresh':
         $refreshToken = getRefreshTokenFromCookie();
         if (verifyRefreshToken($refreshToken) === true) {
+            $payload = getStoredAccessTokenPayload($refreshToken);
             invalidateRefreshToken($refreshToken);
             deleteRefreshTokenFromCookie();
-            $payload = parseRefreshToken($refreshToken);
             if ($payload !== null) {
                 $loginName = $payload['loginName'];
                 $accessToken = generateAccessToken(['loginName' => $loginName]);
-                $refreshToken = generateRefreshToken(['loginName' => $loginName]);
-                storeRefreshToken($refreshToken);
+                $refreshToken = generateRefreshToken([]);
+                storeRefreshToken($refreshToken, ['loginName' => $loginName]);
                 saveRefreshTokenToCookie($refreshToken);
                 sendResponse([
                     'success' => true,
