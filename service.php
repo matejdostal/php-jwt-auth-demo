@@ -69,6 +69,12 @@ function invalidateRefreshToken($refreshToken) {
 }
 
 function getValidRefreshTokens() {
+    if (!file_exists('tokens.json')) {
+        $fp = fopen('tokens.json', 'w');
+        fwrite($fp, '[]');
+        fclose($fp);
+        chmod('tokens.json', 0777);
+    }
     return json_decode(file_get_contents('tokens.json'));
 }
 
@@ -114,6 +120,11 @@ switch ($_SERVER['QUERY_STRING']) {
             ]);
             break;
         }
+        
+        $refreshToken = getRefreshTokenFromCookie();
+        invalidateRefreshToken($refreshToken);
+        deleteRefreshTokenFromCookie();
+
         $accessToken = generateAccessToken(['loginName' => $loginName]);
         $refreshToken = generateRefreshToken(['loginName' => $loginName]);
         storeRefreshToken($refreshToken);

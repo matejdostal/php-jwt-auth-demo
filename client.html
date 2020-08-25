@@ -1,6 +1,8 @@
 <html>
     <head>
         <script>
+            const SERVICE_URL = "service.php?";
+
             let accessToken = null;
             let refreshTimer = null;
 
@@ -24,7 +26,7 @@
 
             async function request(action, params) {
                 console.group({ action, params });
-                const response = await fetch("service.php?" + action, {
+                const response = await fetch(SERVICE_URL + action, {
                     method: "POST",
                     headers: {
                         "X-Access-Token": accessToken || undefined,
